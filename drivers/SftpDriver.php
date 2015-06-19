@@ -59,6 +59,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 	public function init() {
 		parent::init();
 		$this->fileListConverter = new SftpFileListConverter();
+		\gftp\FtpUtils::registerTranslationFolder('gsftp', __DIR__ . '/messages');
 	}
 	
 	public function getHost() {
@@ -128,7 +129,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$this->connectIfNeeded(false);
 		if ($this->user === null) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not login to SFTP server "{host}" on port "{port}" without username.', [
+				Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" without username.', [
 					'host' => $this->host, 'port' => $this->port
 				])
 			);
@@ -145,7 +146,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 				
 				if (!$this->handle->login($this->user, $key)) {
 					throw new FtpException(
-						Yii::t('gftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}" using RSA key.', [
+						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}" using RSA key.', [
 							'host' => $this->host, 'port' => $this->port, 'user' => $this->user
 						])
 					);
@@ -153,7 +154,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 			} else if ($this->pass != null && !empty($this->pass)) {
 				if (!$this->handle->login($this->user, $this->pass)) {
 					throw new FtpException(
-						Yii::t('gftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}".', [
+						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}".', [
 							'host' => $this->host, 'port' => $this->port, 'user' => $this->user
 						])
 					);
@@ -165,7 +166,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 	private static function _readKeyFile($keyType, $keyFile) {
 		if (!file_exists($keyFile)) {
 			throw new FtpException(
-				Yii::t('gftp', '{keyType} key file "{keyFile}" does not exists.', [
+				Yii::t('gsftp', '{keyType} key file "{keyFile}" does not exists.', [
 					'keyType' => $keyType, 'keyFile' => $keyFile
 				])
 			);
@@ -173,7 +174,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$key = file_get_contents($keyFile);
 		if ($key === false) {
 			throw new FtpException(
-				Yii::t('gftp', '{keyType} key file "{keyFile}" could not be read.', [
+				Yii::t('gsftp', '{keyType} key file "{keyFile}" could not be read.', [
 					'keyType' => $keyType, 'keyFile' => $keyFile
 				])
 			);
@@ -198,7 +199,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$this->connectIfNeeded();
 		if (!$this->handle->chdir($path)) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not go to "{folder}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not go to "{folder}" on server "{host}"', [
 					'host' => $this->host, 'folder' => $path
 				])
 			);
@@ -218,7 +219,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		
 		if ($files === false) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not read folder "{folder}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not read folder "{folder}" on server "{host}"', [
 					'host' => $this->host, 'folder' => $dir
 				])
 			);
@@ -234,7 +235,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		
 		if ($file === false) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not get modification time of file "{file}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not get modification time of file "{file}" on server "{host}"', [
 					'host' => $this->host, 'file' => $path
 				])
 			);
@@ -248,7 +249,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 
 		if (!$this->handle->mkdir($dir)) {
 			throw new FtpException(
-				Yii::t('gftp', 'An error occured while creating folder "{folder}" on server "{host}"', [
+				Yii::t('gsftp', 'An error occured while creating folder "{folder}" on server "{host}"', [
 					'host' => $this->host, 'folder' => $dir
 				])
 			);
@@ -268,7 +269,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 
 		if (!$this->handle->chmod($mode, $file, $recursive)) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could change mode (to "{mode}") of file "{file}" on server "{host}"', [
+				Yii::t('gsftp', 'Could change mode (to "{mode}") of file "{file}" on server "{host}"', [
 					'host' => $this->host, 'file' => $file, '{mode}' => $mode
 				])
 			);
@@ -280,7 +281,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$this->connectIfNeeded();
 		if (!$this->handle->delete($path, $recursive)) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not delete file "{file}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not delete file "{file}" on server "{host}"', [
 					'host' => $this->host, 'file' => $path
 				])
 			);
@@ -291,7 +292,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$this->connectIfNeeded();
 		if (!$this->handle->rename($oldname, $newname)) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not rename file "{oldname}" to "{newname}" on server "{host}"',[
+				Yii::t('gsftp', 'Could not rename file "{oldname}" to "{newname}" on server "{host}"',[
 					'host' => $this->host, 'oldname' => $oldname, 'newname' => $newname
 				])
 			);
@@ -304,7 +305,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		$res = $this->handle->size($path);
 		if ($res === false) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not get size of file "{file}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not get size of file "{file}" on server "{host}"', [
 					'host' => $this->host, 'file' => $path
 				])
 			);
@@ -322,7 +323,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		
 		if (!$this->handle->get($remote_file, $local_file)){
 			throw new FtpException(
-				Yii::t('gftp', 'Could not synchronously get file "{remote_file}" from server "{host}"', [
+				Yii::t('gsftp', 'Could not synchronously get file "{remote_file}" from server "{host}"', [
 					'host' => $this->host, 'remote_file' => $remote_file
 				])
 			);
@@ -339,7 +340,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 
 		if (!$this->handle->put($remote_file, $local_file, SFTP::SOURCE_LOCAL_FILE)) {
 			throw new FtpException(
-				Yii::t('gftp', 'Could not put file "{local_file}" on "{remote_file}" on server "{host}"', [
+				Yii::t('gsftp', 'Could not put file "{local_file}" on "{remote_file}" on server "{host}"', [
 					'host' => $this->host, 'remote_file' => $remote_file, 'local_file' => $local_file
 				])
 			);
