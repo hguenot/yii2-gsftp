@@ -1,0 +1,27 @@
+{
+    "name": "hguenot/yii2-gsftp",
+    "description": "Ftp is a FTP extension for [YII 2 Framework](http://www.yiiframework.com).",
+    "type": "yii2-extension",
+    "keywords": ["yii2","extension", "gftp"],
+    "license": "GPL-3.0+",
+    "authors": [
+        {
+            "name": "Hervé Guenot",
+            "email": "herve@guenot.info"
+        }
+    ],
+    "require": {
+        "hguenot/yii2-gftp": "*",
+		"phpseclib/phpseclib": "*"
+    },
+    "require-dev": {
+        "hguenot/yii2-gftp": "*",
+		"phpseclib/phpseclib": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "gftp\\": ""
+        },
+        "files": ["autoload.php"]
+    }
+}
