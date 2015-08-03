@@ -277,6 +277,13 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		
 	}
 
+	public function fileExists($filename) {
+		$this->connectIfNeeded();
+		
+		$res = $this->handle->nlist($filename);
+		return $res !== false;
+	}
+
 	public function delete($path, $recursive = false) {
 		$this->connectIfNeeded();
 		if (!$this->handle->delete($path, $recursive)) {
@@ -346,7 +353,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 			);
 		}
 		
-		return $full_remote_file;
+		return $remote_file;
 	}
 
 	private function connectIfNeeded($withLogin = true) {
