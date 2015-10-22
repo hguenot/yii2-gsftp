@@ -185,7 +185,6 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 	public function close() {
 		if ($this->handle !== null) {
 			$this->handle->disconnect();
-			unset($this->handle);
 			$this->handle = null;
 		}
 	}
