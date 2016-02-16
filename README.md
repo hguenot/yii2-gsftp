@@ -56,13 +56,13 @@ return [
 		'ftp' => [
 			'class' => '\gftp\FtpComponent',
 			'driverOptions' => [
-				'protocol' => \gftp\FtpProtocol::valueOf('sftp'),
+				'class' => \gftp\FtpProtocol::valueOf('sftp')->driver,
 				'user' => 'me@somewhere.otrb',
 				'pass' => 'PassW0rd',
 				'host' => 'ssh.somewhere.otrb',
 				'port' => 22,
-			],
-			'timeout' => 120
+				'timeout' => 120
+			]
 		]
 	],
 	// [...]
