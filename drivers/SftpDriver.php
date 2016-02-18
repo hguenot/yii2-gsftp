@@ -224,7 +224,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 			);
 		}
 
-		return $fileListConverter->parse($files);
+		return $fileListConverter->parse($files, $dir);
 	}
 
 	public function mdtm($path) {
