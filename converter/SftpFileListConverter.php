@@ -18,21 +18,44 @@ class SftpFileListConverter extends \yii\base\Component implements FtpFileListCo
 	}
 
 		
-	public function parse($fullList) {
+	public function parse($fullList, $basePath = '') {
 		
 		$ftpFiles = [];
-		
+
 		foreach ($fullList as $filename => $data) {
-			$ftpFiles[] = new \gftp\FtpFile([
-				'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
-				'rights' => $this->_convertFilePermission($data['permissions']),
-				'user' => $data['uid'],
-				'group' => $data['gid'],
-				'size' => $data['size'],
-				'mdTime' => $this->_convertTime($data['mtime']),
-				'filename' => $filename
-			]);
+			if ($filename == '..')
+				continue;
+			if (is_array($data) && !isset($data['type'])) {
+				$ftpFiles = array_merge($ftpFiles, $this->parse($data, $basePath . '/' . $filename));
+			} else {
+				$path = $basePath . ($filename == '.' ? '' : ('/' . $filename));
+				if (is_object($data)) {
+					$ftpFiles[] = new \gftp\FtpFile([
+						'isDir' => $data->type === NET_SFTP_TYPE_DIRECTORY,
+						'rights' => $this->_convertFilePermission($data->permissions),
+						'user' => $data->uid,
+						'group' => $data->gid,
+						'size' => $data->size,
+						'mdTime' => $this->_convertTime($data->mtime),
+						'filename' => $path
+					]);
+				} else {
+					$ftpFiles[] = new \gftp\FtpFile([
+						'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
+						'rights' => $this->_convertFilePermission($data['permissions']),
+						'user' => $data['uid'],
+						'group' => $data['gid'],
+						'size' => $data['size'],
+						'mdTime' => $this->_convertTime($data['mtime']),
+						'filename' => $path
+					]);
+				}
+			}
 		}
+
+		usort($ftpFiles, function($ftpFile1, $ftpFile2){
+			return strcmp(strtolower($ftpFile1->filename), strtolower($ftpFile2->filename));
+		});
 		
 		return $ftpFiles;
 	}
