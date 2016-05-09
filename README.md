@@ -68,3 +68,9 @@ return [
 	// [...]
 ];
 ```
+
+
+Examples
+-----
+
+You can find examples on [Yii2-gftp extension](https://github.com/hguenot/yii2-gftp) site.
