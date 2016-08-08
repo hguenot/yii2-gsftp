@@ -1,3 +1,7 @@
+[![Latest Stable Version](https://poser.pugx.org/hguenot/yii2-gsftp/v/stable)](https://packagist.org/packages/hguenot/yii2-gsftp)
+[![Total Downloads](https://poser.pugx.org/hguenot/yii2-gsftp/downloads)](https://packagist.org/packages/hguenot/yii2-gsftp)
+[![License](https://poser.pugx.org/hguenot/yii2-gsftp/license)](https://packagist.org/packages/hguenot/yii2-gsftp)
+
 SFtp
 ====
 SFtp is a FTP extension for [YII 2 Framework](http://www.yiiframework.com) based on 
