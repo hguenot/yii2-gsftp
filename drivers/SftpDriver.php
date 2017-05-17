@@ -278,9 +278,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 
 	public function fileExists($filename) {
 		$this->connectIfNeeded();
-		
-		$res = $this->handle->nlist($filename);
-		return $res !== false;
+		return $this->handle->file_exists($filename);
 	}
 
 	public function delete($path, $recursive = false) {
