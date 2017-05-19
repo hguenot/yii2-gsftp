@@ -318,7 +318,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		return $res;
 	}
 
-	public function get($remote_file, $local_file = null, $mode = FTP_ASCII, $asynchronous = false) {
+	public function get($remote_file, $local_file = null, $mode = FTP_ASCII, $asynchronous = false, callable $asyncFn = null) {
 		$this->connectIfNeeded();
 
 		if (!isset($local_file) || $local_file == null || !is_string($local_file) || trim($local_file) == "") {
@@ -336,7 +336,7 @@ class SftpDriver extends \yii\base\Object implements RemoteDriver {
 		return realpath($local_file);
 	}
 
-	public function put($local_file, $remote_file = null, $mode = FTP_ASCII, $asynchronous = false) {
+	public function put($local_file, $remote_file = null, $mode = FTP_ASCII, $asynchronous = false, callable $asyncFn = null) {
 		$this->connectIfNeeded();
 		if (!isset($remote_file) || $remote_file == null || !is_string($remote_file) || trim($remote_file) == "") {
 			$remote_file = basename($local_file);
