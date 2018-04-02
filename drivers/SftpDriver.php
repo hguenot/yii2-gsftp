@@ -12,7 +12,7 @@ use \Yii;
 /**
  * SFTP (SSH) connection driver.
  */
-class SftpDriver extends \yii\base\Object implements RemoteDriver {
+class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
 	
 	/**
 	 * @var \phpseclib\Net\SFTP SFTP Handle 
