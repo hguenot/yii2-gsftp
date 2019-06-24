@@ -30,26 +30,17 @@ class SftpFileListConverter extends \yii\base\Component implements FtpFileListCo
 			} else {
 				$path = $basePath . ($filename == '.' ? '' : ('/' . $filename));
 				if (is_object($data)) {
-					$ftpFiles[] = new \gftp\FtpFile([
-						'isDir' => $data->type === NET_SFTP_TYPE_DIRECTORY,
-						'rights' => $this->_convertFilePermission($data->permissions),
-						'user' => $data->uid,
-						'group' => $data->gid,
-						'size' => $data->size,
-						'mdTime' => $this->_convertTime($data->mtime),
-						'filename' => $path
-					]);
-				} else {
-					$ftpFiles[] = new \gftp\FtpFile([
-						'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
-						'rights' => $this->_convertFilePermission($data['permissions']),
-						'user' => $data['uid'],
-						'group' => $data['gid'],
-						'size' => $data['size'],
-						'mdTime' => $this->_convertTime($data['mtime']),
-						'filename' => $path
-					]);
-				}
+					$data = (array) $data;
+				} 
+				$ftpFiles[] = new \gftp\FtpFile([
+					'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
+					'rights' => $this->_convertFilePermission($data['permissions']),
+					'user' => \yii\helpers\ArrayHelper::getValue($data, 'uid'),
+					'group' => \yii\helpers\ArrayHelper::getValue($data, 'gid'),
+					'size' => \yii\helpers\ArrayHelper::getValue($data, 'size'),
+					'mdTime' => $this->_convertTime($data['mtime']),
+					'filename' => $path
+				]);
 			}
 		}
 
