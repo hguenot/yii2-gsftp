@@ -2,24 +2,33 @@
 
 namespace gftp\converter;
 
+use gftp\FtpFile;
+use yii\base\Component;
+use yii\helpers\ArrayHelper;
+
 /**
  * Description of SftpFileListConverter
  */
-class SftpFileListConverter extends \yii\base\Component implements FtpFileListConverter {
-	
+class SftpFileListConverter extends Component implements FtpFileListConverter {
+
+	/** @var string Date time format returns by the SFTP server */
 	private $dateTimeFormat = 'd/m/Y H:i:s';
 	
-	public function getDateTimeFormat() {
+	public function getDateTimeFormat(): string {
 		return $this->dateTimeFormat;
 	}
 
-	public function setDateTimeFormat($dateTimeFormat) {
+	public function setDateTimeFormat(string $dateTimeFormat): void {
 		$this->dateTimeFormat = $dateTimeFormat;
 	}
 
-		
-	public function parse($fullList, $basePath = '') {
-		
+	/**
+	 * @param string[] $fullList String array returned by ftp_rawlist.
+	 * @param string $basePath Base path of file
+	 *
+	 * @return FtpFile[] Converted file list.
+	 */
+	public function parse(array $fullList, $basePath = ''): array {
 		$ftpFiles = [];
 
 		foreach ($fullList as $filename => $data) {
@@ -35,9 +44,9 @@ class SftpFileListConverter extends \yii\base\Component implements FtpFileListCo
 				$ftpFiles[] = new \gftp\FtpFile([
 					'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
 					'rights' => $this->_convertFilePermission($data['permissions']),
-					'user' => \yii\helpers\ArrayHelper::getValue($data, 'uid'),
-					'group' => \yii\helpers\ArrayHelper::getValue($data, 'gid'),
-					'size' => \yii\helpers\ArrayHelper::getValue($data, 'size'),
+					'user' => ArrayHelper::getValue($data, 'uid'),
+					'group' => ArrayHelper::getValue($data, 'gid'),
+					'size' => ArrayHelper::getValue($data, 'size'),
 					'mdTime' => $this->_convertTime($data['mtime']),
 					'filename' => $path
 				]);

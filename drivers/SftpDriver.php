@@ -2,168 +2,266 @@
 
 namespace gftp\drivers;
 
+use gftp\converter\FtpFileListConverter;
 use \gftp\FtpException;
 use \gftp\converter\SftpFileListConverter;
 use \gftp\converter\SimpleFileListConverter;
+use gftp\FtpUtils;
 use \phpseclib\Net\SFTP;
 use \phpseclib\Crypt\RSA;
 use \Yii;
+use yii\base\BaseObject;
 
 /**
  * SFTP (SSH) connection driver.
+ *
+ * @property string $host
+ * @property int $port
+ * @property string|null $user
+ * @property-write string|null $password
+ * @property int $timeout
+ * @property string|null $publicKeyFile
+ * @property-write string|null $privateKeyFile
+ * @property FtpFileListConverter $fileListConverter
  */
-class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
+class SftpDriver extends BaseObject implements RemoteDriver {
 	
 	/**
-	 * @var \phpseclib\Net\SFTP SFTP Handle 
+	 * @var SFTP SFTP Handle
 	 */
-	private $handle = null;
+	private $_handle = null;
 	
 	/**
 	 * @var string SSH host name or IP.
 	 */
-	private $host = 'localhost';
+	private $_host = 'localhost';
 	
 	/**
 	 * @var int SSH port.
 	 */
-	private $port = 22;
+	private $_port = 22;
 	
 	/**
 	 * @var int SSH connection timeout
 	 */
-	private $timeout = 10;
+	private $_timeout = 10;
 	
 	/**
-	 * @var string Username used for SSH user authentication.
+	 * @var string|null Username used for SSH user authentication.
 	 */
-	private $user = null;
+	private $_user = null;
 	
 	/**
-	 * @var string Password for SSH user/password authentication or passphrase for public/private key authentification.
+	 * @var string|null Password for SSH user/password authentication or passphrase for public/private key authentification.
 	 */
-	private $pass = null;
+	private $_pass = null;
 	
 	/**
-	 * @var string Public key filename for public/private key authentification
+	 * @var string|null Public key filename for public/private key authentication
 	 */
-	private $publicKeyFile = null;
+	private $_publicKeyFile = null;
 	
 	/**
-	 * @var string Private key filename for public/private key authentification
+	 * @var string|null Private key filename for public/private key authentication
 	 */
-	private $privateKeyFile = null;
-	
-	private $fileListConverter = null;
-	
+	private $_privateKeyFile = null;
+	/**
+	 * @var FtpFileListConverter File list converter.
+	 */
+	private $_fileListConverter = null;
+
+	/**
+	 * @inheritDoc
+	 */
 	public function init() {
 		parent::init();
-		$this->fileListConverter = new SftpFileListConverter();
-		\gftp\FtpUtils::registerTranslationFolder('gsftp', __DIR__ . '/messages');
-	}
-	
-	public function getHost() {
-		return $this->host;
-	}
-	
-	public function setHost(/* string */ $host) {
-		$this->host = $host;
-	}
-	
-	function getPort() {
-		return $this->port;
+		$this->_fileListConverter = new SftpFileListConverter();
+		FtpUtils::registerTranslationFolder('gsftp', __DIR__ . '/messages');
 	}
 
-	function setPort(/* int */ $port) {
-		$this->port = $port;
+	/**
+	 * @return string The current connected host.
+	 */
+	public function getHost(): string {
+		return $this->_host;
 	}
 
-	public function getTimeout() {
-		return $this->timeout;
+	/**
+	 * @param string $host Change the connected host
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setHost(string $host): void {
+		// Close connection before changing host.
+		if ($this->_host !== $host) {
+			$this->close();
+			$this->_host = $host;
+		}
 	}
 
-	public function setTimeout(/* int */ $timeout) {
-		$this->timeout = $timeout;
-		return $this;
+	/**
+	 * @return int The current connected port
+	 */
+	function getPort(): int {
+		return $this->_port;
 	}
 
-	function getUser() {
-		return $this->user;
+	/**
+	 * @param int $port The new port to connect
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	function setPort(int $port): void {
+		// Close connection before changing poirt.
+		if ($this->_port !== $port) {
+			$this->close();
+			$this->_port = $port;
+		}
 	}
 
-	function setUser(/* string */ $user) {
-		$this->user = $user;
+	/**
+	 * Changing FTP connecting username.
+	 *
+	 * @param string $user New username
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setUser(string $user): void {
+		// Close connection before changing username.
+		if ($this->_user !== $user) {
+			$this->close();
+			$this->_user = $user;
+		}
 	}
 
-	function getPass() {
-		return $this->pass;
+	/**
+	 * @return string The FTP connecting username.
+	 */
+	public function getUser(): string {
+		return $this->_user;
 	}
 
-	function setPass(/* string */ $pass) {
-		$this->pass = $pass;
+	/**
+	 * Changing FTP password.
+	 *
+	 * @param string|null $pass New password
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setPass(?string $pass): void {
+		// Close connection before changing password.
+		if ($this->_pass !== $pass) {
+			$this->close();
+			$this->_pass = $pass;
+		}
 	}
 
-	public function getPublicKeyFile() {
-		return $this->publicKeyFile;
+	/**
+	 * @return string The current public key file
+	 */
+	public function getPublicKeyFile(): string {
+		return $this->_publicKeyFile;
 	}
 
-	public function setPublicKeyFile(/* string */ $publicKeyFile) {
-		$this->publicKeyFile = $publicKeyFile;
+	/**
+	 * @param string|null $publicKeyFile The new public key file
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setPublicKeyFile(?string $publicKeyFile) {
+		// Close connection before changing public key.
+		if ($this->_publicKeyFile !== $publicKeyFile) {
+			$this->close();
+			$this->_publicKeyFile = $publicKeyFile;
+		}
 	}
 
-	public function getPrivateKeyFile() {
-		return $this->privateKeyFile;
+	/**
+	 * @param string|null $privateKeyFile The new private key file
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setPrivateKeyFile(?string $privateKeyFile) {
+		// Close connection before changing private key.
+		if ($this->_privateKeyFile !== $privateKeyFile) {
+			$this->close();
+			$this->_privateKeyFile = $privateKeyFile;
+		}
 	}
 
-	public function setPrivateKeyFile(/* string */ $privateKeyFile) {
-		$this->privateKeyFile = $privateKeyFile;
+	/**
+	 * Changing connection timeout in seconds.
+	 *
+	 * @param integer $timeout Set passive mode
+	 */
+	public function setTimeout(int $timeout): void {
+		$this->_timeout = $timeout;
 	}
 
-	
-					
-	public function connect() {
-		$this->handle = new SFTP($this->host, $this->port);
+	/**
+	 * @return integer FTP connection timeout.
+	 */
+	public function getTimeout(): int {
+		return $this->_timeout;
 	}
 
-	public function login() {
+	/**
+	 * @inheritDoc
+	 */
+	public function connect(): void {
+		$this->_handle = new SFTP($this->_host, $this->_port);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function login(): void {
 		$this->connectIfNeeded(false);
-		if ($this->user === null) {
+		if ($this->_user === null) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" without username.', [
-					'host' => $this->host, 'port' => $this->port
+						'host' => $this->_host, 'port' => $this->_port
 				])
 			);
 		} else {
-			if ($this->privateKeyFile != null) {
+			if ($this->_privateKeyFile != null) {
 				$key = new RSA();
-				if ($this->pass != null && !empty($this->pass)) 
-					$key->setPassword ($this->pass);
+				if ($this->_pass != null && !empty($this->_pass))
+					$key->setPassword ($this->_pass);
 					
-				if ($this->publicKeyFile != null && !empty($this->publicKeyFile)) 
-					$key->setPublicKey(self::_readKeyFile('Public', $this->publicKeyFile));
+				if ($this->_publicKeyFile != null && !empty($this->_publicKeyFile))
+					$key->setPublicKey(self::_readKeyFile('Public', $this->_publicKeyFile));
 				
-				$key->setPrivateKey(self::_readKeyFile('Private', $this->privateKeyFile));
+				$key->setPrivateKey(self::_readKeyFile('Private', $this->_privateKeyFile));
 				
-				if (!$this->handle->login($this->user, $key)) {
+				if (!$this->_handle->login($this->_user, $key)) {
 					throw new FtpException(
 						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}" using RSA key.', [
-							'host' => $this->host, 'port' => $this->port, 'user' => $this->user
+								'host' => $this->_host, 'port' => $this->_port, 'user' => $this->_user
 						])
 					);
 				}
-			} else if ($this->pass != null && !empty($this->pass)) {
-				if (!$this->handle->login($this->user, $this->pass)) {
+			} else if ($this->_pass != null && !empty($this->_pass)) {
+				if (!$this->_handle->login($this->_user, $this->_pass)) {
 					throw new FtpException(
 						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}".', [
-							'host' => $this->host, 'port' => $this->port, 'user' => $this->user
+								'host' => $this->_host, 'port' => $this->_port, 'user' => $this->_user
 						])
 					);
 				}
 			}
 		}
 	}
-	
-	private static function _readKeyFile($keyType, $keyFile) {
+
+	/**
+	 * @param string $keyType 'Public' or 'Private' key file
+	 * @param string $keyFile Key file to read
+	 *
+	 * @return string File content
+	 *
+	 * @throws FtpException If key file could not be read.
+	 */
+	private static function _readKeyFile($keyType, string $keyFile): string {
 		if (!file_exists($keyFile)) {
 			throw new FtpException(
 				Yii::t('gsftp', '{keyType} key file "{keyFile}" does not exists.', [
@@ -182,44 +280,57 @@ class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
 		return $key;
 	}
 
-	public function close() {
-		if ($this->handle !== null) {
-			$this->handle->disconnect();
-			$this->handle = null;
+	/**
+	 * @inheritDoc
+	 */
+	public function close(): void {
+		if ($this->_handle !== null) {
+			$this->_handle->disconnect();
+			$this->_handle = null;
 		}
 	}
-	
-	public function pwd() {
+
+	/**
+	 * @inheritDoc
+	 */
+	public function pwd(): string {
 		$this->connectIfNeeded();
-		return $this->handle->pwd();
+		return $this->_handle->pwd();
 	}
 
-	public function chdir($path) {
+	/**
+	 * @inheritDoc
+	 */
+	public function chdir(string $path): string {
 		$this->connectIfNeeded();
-		if (!$this->handle->chdir($path)) {
+		if (!$this->_handle->chdir($path)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not go to "{folder}" on server "{host}"', [
-					'host' => $this->host, 'folder' => $path
+						'host' => $this->_host, 'folder' => $path
 				])
 			);
 		}
+		return $this->pwd();
 	}
-	
-	public function ls($dir = ".", $full = false, $recursive = false) {
+
+	/**
+	 * @inheritDoc
+	 */
+	public function ls(string $dir = '.', bool $full = false, bool $recursive = false): array {
 		$this->connectIfNeeded();
-		$fileListConverter = $this->fileListConverter;
+		$fileListConverter = $this->_fileListConverter;
 		
 		if ($full) {
-			$files = $this->handle->rawlist($dir, $recursive);
+			$files = $this->_handle->rawlist($dir, $recursive);
 		} else {
-			$files = $this->handle->nlist($dir, $recursive);
+			$files = $this->_handle->nlist($dir, $recursive);
 			$fileListConverter = new SimpleFileListConverter();
 		}
 		
 		if ($files === false) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not read folder "{folder}" on server "{host}"', [
-					'host' => $this->host, 'folder' => $dir
+						'host' => $this->_host, 'folder' => $dir
 				])
 			);
 		}
@@ -227,15 +338,18 @@ class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
 		return $fileListConverter->parse($files, $dir);
 	}
 
-	public function mdtm($path) {
+	/**
+	 * @inheritDoc
+	 */
+	public function mdtm(string $path): int {
 		$this->connectIfNeeded();
 
-		$file = $this->handle->stat($path);
+		$file = $this->_handle->stat($path);
 		
 		if ($file === false) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not get modification time of file "{file}" on server "{host}"', [
-					'host' => $this->host, 'file' => $path
+						'host' => $this->_host, 'file' => $path
 				])
 			);
 		}
@@ -243,74 +357,94 @@ class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
 		return $file['mtime'];
 	}
 
-	public function mkdir($dir) {
+	/**
+	 * @inheritDoc
+	 */
+	public function mkdir(string $dir): void {
 		$this->connectIfNeeded();
 
-		if (!$this->handle->mkdir($dir)) {
+		if (!$this->_handle->mkdir($dir)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'An error occured while creating folder "{folder}" on server "{host}"', [
-					'host' => $this->host, 'folder' => $dir
+						'host' => $this->_host, 'folder' => $dir
 				])
 			);
 		}
 	}
 
-	public function rmdir($dir) {
+	/**
+	 * @inheritDoc
+	 */
+	public function rmdir(string $dir): void {
 		$this->delete($dir, true);
 	}
 
-
-	public function chmod($mode, $file, $recursive = false) {
+	/**
+	 * @inheritDoc
+	 */
+	public function chmod(string $mode, string $file, bool $recursive = false): void {
 		$this->connectIfNeeded();
 		if (substr($mode, 0, 1) != '0') {
 			$mode = (int) (octdec ( str_pad ( $mode, 4, '0', STR_PAD_LEFT ) ));
 		}
 
-		if (!$this->handle->chmod($mode, $file, $recursive)) {
+		if (!$this->_handle->chmod($mode, $file, $recursive)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could change mode (to "{mode}") of file "{file}" on server "{host}"', [
-					'host' => $this->host, 'file' => $file, '{mode}' => $mode
+						'host' => $this->_host, 'file' => $file, '{mode}' => $mode
 				])
 			);
 		}
 		
 	}
 
-	public function fileExists($filename) {
+	/**
+	 * @inheritDoc
+	 */
+	public function fileExists(string $filename): bool {
 		$this->connectIfNeeded();
-		return $this->handle->file_exists($filename);
+		return $this->_handle->file_exists($filename);
 	}
 
-	public function delete($path, $recursive = false) {
+	/**
+	 * @inheritDoc
+	 */
+	public function delete(string $path, bool $recursive = false): void {
 		$this->connectIfNeeded();
-		if (!$this->handle->delete($path, $recursive)) {
+		if (!$this->_handle->delete($path, $recursive)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not delete file "{file}" on server "{host}"', [
-					'host' => $this->host, 'file' => $path
+						'host' => $this->_host, 'file' => $path
 				])
 			);
 		}
 	}
 
-	public function rename($oldname, $newname) {
+	/**
+	 * @inheritDoc
+	 */
+	public function rename(string $oldName, string $newName): void {
 		$this->connectIfNeeded();
-		if (!$this->handle->rename($oldname, $newname)) {
+		if (!$this->_handle->rename($oldName, $newName)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not rename file "{oldname}" to "{newname}" on server "{host}"',[
-					'host' => $this->host, 'oldname' => $oldname, 'newname' => $newname
+						'host' => $this->_host, 'oldname' => $oldName, 'newname' => $newName
 				])
 			);
 		}
 	}
 
-	public function size($path) {
+	/**
+	 * @inheritDoc
+	 */
+	public function size(string $path): int {
 		$this->connectIfNeeded();
 
-		$res = $this->handle->size($path);
+		$res = $this->_handle->size($path);
 		if ($res === false) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not get size of file "{file}" on server "{host}"', [
-					'host' => $this->host, 'file' => $path
+						'host' => $this->_host, 'file' => $path
 				])
 			);
 		}
@@ -318,43 +452,60 @@ class SftpDriver extends \yii\base\BaseObject implements RemoteDriver {
 		return $res;
 	}
 
-	public function get($remote_file, $local_file = null, $mode = FTP_ASCII, $asynchronous = false, callable $asyncFn = null) {
+	/**
+	 * @inheritDoc
+	 */
+	public function get(
+			string $remote_file,
+			$local_file = null,
+			int $mode = FTP_ASCII,
+			bool $asynchronous = false,
+			callable $asyncFn = null): void {
 		$this->connectIfNeeded();
 
 		if (!isset($local_file) || $local_file == null || !is_string($local_file) || trim($local_file) == "") {
 			$local_file = getcwd() . DIRECTORY_SEPARATOR . basename($remote_file);
 		}
 		
-		if (!$this->handle->get($remote_file, $local_file)){
+		if (!$this->_handle->get($remote_file, $local_file)){
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not synchronously get file "{remote_file}" from server "{host}"', [
-					'host' => $this->host, 'remote_file' => $remote_file
+						'host' => $this->_host, 'remote_file' => $remote_file
 				])
 			);
 		}
-		
-		return realpath($local_file);
 	}
 
-	public function put($local_file, $remote_file = null, $mode = FTP_ASCII, $asynchronous = false, callable $asyncFn = null) {
+	/**
+	 * @inheritDoc
+	 */
+	public function put(
+			$local_file,
+			?string $remote_file = null,
+			int $mode = FTP_ASCII,
+			bool $asynchronous = false,
+			callable $asyncFn = null): void {
 		$this->connectIfNeeded();
 		if (!isset($remote_file) || $remote_file == null || !is_string($remote_file) || trim($remote_file) == "") {
 			$remote_file = basename($local_file);
 		}
 
-		if (!$this->handle->put($remote_file, $local_file, SFTP::SOURCE_LOCAL_FILE)) {
+		if (!$this->_handle->put($remote_file, $local_file, SFTP::SOURCE_LOCAL_FILE)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not put file "{local_file}" on "{remote_file}" on server "{host}"', [
-					'host' => $this->host, 'remote_file' => $remote_file, 'local_file' => $local_file
+						'host' => $this->_host, 'remote_file' => $remote_file, 'local_file' => $local_file
 				])
 			);
 		}
-		
-		return $remote_file;
 	}
 
-	private function connectIfNeeded($withLogin = true) {
-		if ($this->handle == null) {
+	/**
+	 * @param bool $withLogin
+	 *
+	 * @throws FtpException If connection or login failed.
+	 */
+	private function connectIfNeeded(bool $withLogin = true): void {
+		if ($this->_handle == null) {
 			$this->connect();
 		
 			if ($withLogin) {

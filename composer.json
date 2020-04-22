@@ -11,8 +11,9 @@
         }
     ],
     "require": {
-        "hguenot/yii2-gftp": "*",
-		"phpseclib/phpseclib": "*"
+        "php": ">=7.1",
+        "hguenot/yii2-gftp": ">=3.0.0",
+		"phpseclib/phpseclib": "~2.0"
     },
     "require-dev": {
         "hguenot/yii2-gftp": "*",
