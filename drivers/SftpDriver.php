@@ -209,7 +209,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 * @inheritDoc
 	 */
 	public function connect(): void {
-		$this->_handle = new SFTP($this->_host, $this->_port);
+		$this->_handle = new SFTP($this->_host, $this->_port, $this->_timeout);
 	}
 
 	/**
