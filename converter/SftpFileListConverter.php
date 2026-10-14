@@ -11,6 +11,9 @@ use yii\helpers\ArrayHelper;
  */
 class SftpFileListConverter extends Component implements FtpFileListConverter {
 
+	/** @var int SFTP file type for directories (SSH_FILEXFER_TYPE_DIRECTORY) */
+	private const TYPE_DIRECTORY = 2;
+
 	/** @var string Date time format returns by the SFTP server */
 	private $dateTimeFormat = 'd/m/Y H:i:s';
 	
@@ -42,8 +45,8 @@ class SftpFileListConverter extends Component implements FtpFileListConverter {
 					$data = (array) $data;
 				} 
 				$ftpFiles[] = new \gftp\FtpFile([
-					'isDir' => $data['type'] === NET_SFTP_TYPE_DIRECTORY,
-					'rights' => $this->_convertFilePermission($data['permissions']),
+					'isDir' => $data['type'] === self::TYPE_DIRECTORY,
+					'rights' => $this->_convertFilePermission($data['mode']),
 					'user' => ArrayHelper::getValue($data, 'uid'),
 					'group' => ArrayHelper::getValue($data, 'gid'),
 					'size' => ArrayHelper::getValue($data, 'size'),

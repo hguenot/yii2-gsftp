@@ -7,8 +7,8 @@ use \gftp\FtpException;
 use \gftp\converter\SftpFileListConverter;
 use \gftp\converter\SimpleFileListConverter;
 use gftp\FtpUtils;
-use \phpseclib\Net\SFTP;
-use \phpseclib\Crypt\RSA;
+use \phpseclib3\Net\SFTP;
+use \phpseclib3\Crypt\PublicKeyLoader;
 use \Yii;
 use yii\base\BaseObject;
 
@@ -22,6 +22,7 @@ use yii\base\BaseObject;
  * @property int $timeout
  * @property string|null $publicKeyFile
  * @property-write string|null $privateKeyFile
+ * @property string|null $hostKeyFingerprint
  * @property FtpFileListConverter $fileListConverter
  */
 class SftpDriver extends BaseObject implements RemoteDriver {
@@ -65,6 +66,12 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 * @var string|null Private key filename for public/private key authentication
 	 */
 	private $_privateKeyFile = null;
+
+	/**
+	 * @var string|null Expected SHA256 fingerprint of the server host key (as printed by `ssh-keygen -lf`).
+	 */
+	private $_hostKeyFingerprint = null;
+
 	/**
 	 * @var FtpFileListConverter File list converter.
 	 */
@@ -76,7 +83,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	public function init() {
 		parent::init();
 		$this->_fileListConverter = new SftpFileListConverter();
-		FtpUtils::registerTranslationFolder('gsftp', __DIR__ . '/messages');
+		FtpUtils::registerTranslationFolder('gsftp', dirname(__DIR__) . '/messages');
 	}
 
 	/**
@@ -137,7 +144,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	/**
 	 * @return string The FTP connecting username.
 	 */
-	public function getUser(): string {
+	public function getUser(): ?string {
 		return $this->_user;
 	}
 
@@ -159,7 +166,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	/**
 	 * @return string The current public key file
 	 */
-	public function getPublicKeyFile(): string {
+	public function getPublicKeyFile(): ?string {
 		return $this->_publicKeyFile;
 	}
 
@@ -190,6 +197,26 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	}
 
 	/**
+	 * @return string|null The expected server host key fingerprint
+	 */
+	public function getHostKeyFingerprint(): ?string {
+		return $this->_hostKeyFingerprint;
+	}
+
+	/**
+	 * @param string|null $hostKeyFingerprint Expected SHA256 server host key fingerprint, e.g. "SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"
+	 *
+	 * @throws FtpException If closing current connection failed
+	 */
+	public function setHostKeyFingerprint(?string $hostKeyFingerprint): void {
+		// Close connection before changing expected host key.
+		if ($this->_hostKeyFingerprint !== $hostKeyFingerprint) {
+			$this->close();
+			$this->_hostKeyFingerprint = $hostKeyFingerprint;
+		}
+	}
+
+	/**
 	 * Changing connection timeout in seconds.
 	 *
 	 * @param integer $timeout Set passive mode
@@ -209,7 +236,57 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 * @inheritDoc
 	 */
 	public function connect(): void {
-		$this->_handle = new SFTP($this->_host, $this->_port, $this->_timeout);
+		$this->_handle = $this->createHandle();
+		if ($this->_hostKeyFingerprint !== null) {
+			$this->_verifyHostKey();
+		}
+	}
+
+	/**
+	 * @return SFTP New SFTP handle
+	 */
+	protected function createHandle(): SFTP {
+		return new SFTP($this->_host, $this->_port, $this->_timeout);
+	}
+
+	/**
+	 * @throws FtpException If the server host key does not match the expected fingerprint.
+	 */
+	private function _verifyHostKey(): void {
+		$hostKey = $this->_exec('getServerPublicHostKey');
+		$expected = self::_normalizeFingerprint($this->_hostKeyFingerprint);
+		if ($hostKey === false || !hash_equals($expected, self::computeFingerprint($hostKey))) {
+			$this->close();
+			throw new FtpException(
+				Yii::t('gsftp', 'Host key of SFTP server "{host}" on port "{port}" does not match the expected fingerprint.', [
+						'host' => $this->_host, 'port' => $this->_port
+				])
+			);
+		}
+	}
+
+	/**
+	 * @param string $hostKey Host key in OpenSSH format ("<type> <base64 blob>")
+	 *
+	 * @return string SHA256 fingerprint in `ssh-keygen -lf` format
+	 */
+	public static function computeFingerprint(string $hostKey): string {
+		$parts = explode(' ', trim($hostKey));
+		$blob = base64_decode($parts[1] ?? '', true);
+		return 'SHA256:' . rtrim(base64_encode(hash('sha256', (string) $blob, true)), '=');
+	}
+
+	/**
+	 * @param string $fingerprint Fingerprint with or without "SHA256:" prefix and base64 padding
+	 *
+	 * @return string Normalized fingerprint
+	 */
+	private static function _normalizeFingerprint(string $fingerprint): string {
+		$fingerprint = trim($fingerprint);
+		if (stripos($fingerprint, 'SHA256:') === 0) {
+			$fingerprint = substr($fingerprint, 7);
+		}
+		return 'SHA256:' . rtrim($fingerprint, '=');
 	}
 
 	/**
@@ -225,30 +302,40 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 			);
 		} else {
 			if ($this->_privateKeyFile != null) {
-				$key = new RSA();
-				if ($this->_pass != null && !empty($this->_pass))
-					$key->setPassword ($this->_pass);
-					
-				if ($this->_publicKeyFile != null && !empty($this->_publicKeyFile))
-					$key->setPublicKey(self::_readKeyFile('Public', $this->_publicKeyFile));
-				
-				$key->setPrivateKey(self::_readKeyFile('Private', $this->_privateKeyFile));
-				
-				if (!$this->_handle->login($this->_user, $key)) {
+				try {
+					$key = PublicKeyLoader::loadPrivateKey(
+						self::_readKeyFile('Private', $this->_privateKeyFile),
+						empty($this->_pass) ? false : $this->_pass
+					);
+				} catch (\phpseclib3\Exception\NoKeyLoadedException $e) {
 					throw new FtpException(
-						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}" using RSA key.', [
+						Yii::t('gsftp', 'Private key file "{keyFile}" could not be loaded.', [
+							'keyFile' => $this->_privateKeyFile
+						])
+					);
+				}
+
+				if (!$this->_exec('login', $this->_user, $key)) {
+					throw new FtpException(
+						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}" using private key.', [
 								'host' => $this->_host, 'port' => $this->_port, 'user' => $this->_user
 						])
 					);
 				}
 			} else if ($this->_pass != null && !empty($this->_pass)) {
-				if (!$this->_handle->login($this->_user, $this->_pass)) {
+				if (!$this->_exec('login', $this->_user, $this->_pass)) {
 					throw new FtpException(
 						Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}".', [
 								'host' => $this->_host, 'port' => $this->_port, 'user' => $this->_user
 						])
 					);
 				}
+			} else {
+				throw new FtpException(
+					Yii::t('gsftp', 'Could not login to SFTP server "{host}" on port "{port}" with user "{user}": no password or private key configured.', [
+							'host' => $this->_host, 'port' => $this->_port, 'user' => $this->_user
+					])
+				);
 			}
 		}
 	}
@@ -285,7 +372,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function close(): void {
 		if ($this->_handle !== null) {
-			$this->_handle->disconnect();
+			$this->_exec('disconnect');
 			$this->_handle = null;
 		}
 	}
@@ -295,7 +382,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function pwd(): string {
 		$this->connectIfNeeded();
-		return $this->_handle->pwd();
+		return $this->_exec('pwd');
 	}
 
 	/**
@@ -303,7 +390,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function chdir(string $path): string {
 		$this->connectIfNeeded();
-		if (!$this->_handle->chdir($path)) {
+		if (!$this->_exec('chdir', $path)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not go to "{folder}" on server "{host}"', [
 						'host' => $this->_host, 'folder' => $path
@@ -321,9 +408,9 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 		$fileListConverter = $this->_fileListConverter;
 		
 		if ($full) {
-			$files = $this->_handle->rawlist($dir, $recursive);
+			$files = $this->_exec('rawlist', $dir, $recursive);
 		} else {
-			$files = $this->_handle->nlist($dir, $recursive);
+			$files = $this->_exec('nlist', $dir, $recursive);
 			$fileListConverter = new SimpleFileListConverter();
 		}
 		
@@ -344,7 +431,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	public function mdtm(string $path): int {
 		$this->connectIfNeeded();
 
-		$file = $this->_handle->stat($path);
+		$file = $this->_exec('stat', $path);
 		
 		if ($file === false) {
 			throw new FtpException(
@@ -363,7 +450,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	public function mkdir(string $dir): void {
 		$this->connectIfNeeded();
 
-		if (!$this->_handle->mkdir($dir)) {
+		if (!$this->_exec('mkdir', $dir)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'An error occured while creating folder "{folder}" on server "{host}"', [
 						'host' => $this->_host, 'folder' => $dir
@@ -384,14 +471,12 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function chmod(string $mode, string $file, bool $recursive = false): void {
 		$this->connectIfNeeded();
-		if (substr($mode, 0, 1) != '0') {
-			$mode = (int) (octdec ( str_pad ( $mode, 4, '0', STR_PAD_LEFT ) ));
-		}
+		$mode = (int) octdec($mode);
 
-		if (!$this->_handle->chmod($mode, $file, $recursive)) {
+		if ($this->_exec('chmod', $mode, $file, $recursive) === false) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could change mode (to "{mode}") of file "{file}" on server "{host}"', [
-						'host' => $this->_host, 'file' => $file, '{mode}' => $mode
+						'host' => $this->_host, 'file' => $file, 'mode' => decoct($mode)
 				])
 			);
 		}
@@ -403,7 +488,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function fileExists(string $filename): bool {
 		$this->connectIfNeeded();
-		return $this->_handle->file_exists($filename);
+		return $this->_exec('file_exists', $filename);
 	}
 
 	/**
@@ -411,7 +496,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function delete(string $path, bool $recursive = false): void {
 		$this->connectIfNeeded();
-		if (!$this->_handle->delete($path, $recursive)) {
+		if (!$this->_exec('delete', $path, $recursive)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not delete file "{file}" on server "{host}"', [
 						'host' => $this->_host, 'file' => $path
@@ -425,7 +510,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	 */
 	public function rename(string $oldName, string $newName): void {
 		$this->connectIfNeeded();
-		if (!$this->_handle->rename($oldName, $newName)) {
+		if (!$this->_exec('rename', $oldName, $newName)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not rename file "{oldname}" to "{newname}" on server "{host}"',[
 						'host' => $this->_host, 'oldname' => $oldName, 'newname' => $newName
@@ -440,7 +525,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 	public function size(string $path): int {
 		$this->connectIfNeeded();
 
-		$res = $this->_handle->size($path);
+		$res = $this->_exec('filesize', $path);
 		if ($res === false) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not get size of file "{file}" on server "{host}"', [
@@ -467,7 +552,7 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 			$local_file = getcwd() . DIRECTORY_SEPARATOR . basename($remote_file);
 		}
 		
-		if (!$this->_handle->get($remote_file, $local_file)){
+		if (!$this->_exec('get', $remote_file, $local_file)){
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not synchronously get file "{remote_file}" from server "{host}"', [
 						'host' => $this->_host, 'remote_file' => $remote_file
@@ -490,11 +575,36 @@ class SftpDriver extends BaseObject implements RemoteDriver {
 			$remote_file = basename($local_file);
 		}
 
-		if (!$this->_handle->put($remote_file, $local_file, SFTP::SOURCE_LOCAL_FILE)) {
+		if (!$this->_exec('put', $remote_file, $local_file, SFTP::SOURCE_LOCAL_FILE)) {
 			throw new FtpException(
 				Yii::t('gsftp', 'Could not put file "{local_file}" on "{remote_file}" on server "{host}"', [
 						'host' => $this->_host, 'remote_file' => $remote_file, 'local_file' => $local_file
 				])
+			);
+		}
+	}
+
+	/**
+	 * Calls a method on the SFTP handle, converting phpseclib runtime errors to {@link FtpException}.
+	 *
+	 * @param string $method SFTP method name
+	 * @param mixed ...$args Method arguments
+	 *
+	 * @return mixed Method result
+	 *
+	 * @throws FtpException If phpseclib throws a runtime error (connection lost, timeout, protocol error...).
+	 */
+	private function _exec(string $method, ...$args) {
+		try {
+			return $this->_handle->$method(...$args);
+		} catch (\RuntimeException $e) {
+			$this->_handle = null;
+			throw new FtpException(
+				Yii::t('gsftp', 'SFTP error on server "{host}" on port "{port}": {message}', [
+						'host' => $this->_host, 'port' => $this->_port, 'message' => $e->getMessage()
+				]),
+				0,
+				$e
 			);
 		}
 	}

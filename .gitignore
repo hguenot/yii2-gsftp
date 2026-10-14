@@ -1,2 +1,4 @@
 vendor
 *.iml
+composer.lock
+.phpunit.result.cache

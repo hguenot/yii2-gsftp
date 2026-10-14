@@ -74,6 +74,31 @@ return [
 ```
 
 
+Host key verification
+---------------------
+
+To protect against man-in-the-middle attacks, set `hostKeyFingerprint` to the SHA256 fingerprint of the server host key.
+The connection is refused if the key presented by the server does not match.
+You can get the fingerprint with:
+
+```
+ssh-keyscan -p 22 ssh.somewhere.otrb 2>/dev/null | ssh-keygen -lf -
+```
+
+```php
+'driverOptions' => [
+	'class' => \gftp\FtpProtocol::valueOf('sftp')->driver,
+	// [...]
+	'hostKeyFingerprint' => 'SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8',
+]
+```
+
+Private key authentication
+--------------------------
+
+Set `privateKeyFile` (RSA, ECDSA or Ed25519 key); `pass` is used as passphrase if the key is encrypted.
+`publicKeyFile` is no longer needed and is ignored.
+
 Examples
 -----
 

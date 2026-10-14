@@ -1,0 +1,44 @@
+version: '3'
+
+dotenv: ['.env.test']
+
+vars:
+  SFTP_CONTAINER: gsftp-test-sftp
+
+tasks:
+  dev:install:
+    desc: Install composer dependencies
+    cmds:
+      - composer install
+
+  dev:sftp:up:
+    desc: Start the SFTP test server (atmoz/sftp)
+    cmds:
+      - >-
+        docker run -d --rm --name {{.SFTP_CONTAINER}} -p ${SFTP_TEST_PORT}:22
+        atmoz/sftp ${SFTP_TEST_USER}:${SFTP_TEST_PASS}:::${SFTP_TEST_DIR}
+      - for i in $(seq 1 30); do ssh-keyscan -p ${SFTP_TEST_PORT} ${SFTP_TEST_HOST} >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1
+    status:
+      - docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -qx {{.SFTP_CONTAINER}}
+
+  dev:sftp:down:
+    desc: Stop the SFTP test server
+    cmds:
+      - docker stop {{.SFTP_CONTAINER}}
+
+  test:unit:
+    desc: Run unit tests
+    cmds:
+      - vendor/bin/phpunit --testsuite unit
+
+  test:functional:
+    desc: Run functional tests against the SFTP test server
+    deps: [dev:sftp:up]
+    cmds:
+      - vendor/bin/phpunit --testsuite functional
+
+  ci:test:
+    desc: Run all tests
+    cmds:
+      - task: test:unit
+      - task: test:functional
